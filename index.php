@@ -1,8 +1,4 @@
 <?php
-// index_files_listing.php — улучшенный листинг файлов и подпапок из папки "files"
-// Внедрены: SVG-иконки, подсветка контекста совпадений и счётчик, skeleton-loader,
-// улучшенная доступность (фокус/клавиатура) и micro-interactions.
-
 $dir = __DIR__ . DIRECTORY_SEPARATOR . 'files';
 $webDir = 'files';
 $items = [];
@@ -121,7 +117,6 @@ h1{margin:0;font-size:22px;background:linear-gradient(90deg,var(--accent),#9ae2f
 .tooltip{position:relative}
 .tooltip[data-title]:hover::after{content:attr(data-title);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:rgba(2,8,23,0.9);color:#cfeefc;padding:6px 8px;border-radius:6px;font-size:12px;white-space:nowrap}
 
-/* small responsive tweaks */
 @media (max-width:880px){.search{min-width:180px}.brand h1{font-size:18px}}
 @media (max-width:640px){.actions{flex-direction:column;align-items:stretch}.search{width:100%}}
 </style>
@@ -173,12 +168,10 @@ h1{margin:0;font-size:22px;background:linear-gradient(90deg,var(--accent),#9ae2f
         const FILES = <?php echo json_encode($items, JSON_UNESCAPED_UNICODE); ?> || [];
         const webDir = '<?php echo addslashes($webDir); ?>';
 
-        // Utility
         function escapeHtml(unsafe){return String(unsafe).replace(/[&<>\"']/g, function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','\\"':'&quot;','"':'&quot;',"'":"&#39;"}[m]||m;});}
         function humanSize(bytes){if(bytes===0)return'0 B';const thresh=1024;const units=['B','KB','MB','GB','TB'];let u=0;let n=bytes;while(n>=thresh&&u<units.length-1){n/=thresh;u++;}return Math.round(n*10)/10+' '+units[u];}
         function fmtDate(ts){const d=new Date(ts*1000);return d.toLocaleString();}
 
-        // Возвращает HTML и количество совпадений
         function highlightSnippet(name, q){
             const raw = String(name);
             if(!q) return {html: escapeHtml(raw), count: 0};
@@ -256,7 +249,6 @@ h1{margin:0;font-size:22px;background:linear-gradient(90deg,var(--accent),#9ae2f
             }
         }
 
-        // create skeleton placeholders while UI "загружается"
         function createSkeleton(count=6){
             listEl.innerHTML = '';
             for(let i=0;i<count;i++){
@@ -336,7 +328,6 @@ h1{margin:0;font-size:22px;background:linear-gradient(90deg,var(--accent),#9ae2f
                     crow.appendChild(cthumb);crow.appendChild(cmeta);crow.appendChild(cbtns);
                     childrenWrap.appendChild(crow);
 
-                    // keyboard: Enter -> download
                     crow.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const a = crow.querySelector('a.primary'); if(a) a.click(); } if(e.key===' '){ e.preventDefault(); const cb = crow.querySelector('.copy-toggle'); if(cb) cb.click(); } });
                 });
 
