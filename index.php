@@ -1,5 +1,5 @@
 <?php
-// index.php — улучшенный листинг файлов и подпапок из папки "files"
+// index.php — улучшенный листинг файлов и подпапок из папки "files" (scroll + folder icons)
 $dir = __DIR__ . DIRECTORY_SEPARATOR . 'files';
 $webDir = 'files';
 $items = [];
@@ -47,10 +47,20 @@ if (is_dir($dir)) {
     <title>Файлы для скачивания</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <style>
-        :root { --bg-1:#06101a; --bg-2:#091425; --card:#071827; --muted:#9fb0c1; --accent:#56c1ff; --glass:rgba(255,255,255,0.03); --radius:12px; --glass-2: rgba(255,255,255,0.02); }
-        * { box-sizing: border-box; }
-        html, body { height: 100%; margin: 0; }
-        body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;background:radial-gradient(ellipse at 20% 10%, rgba(86,193,255,0.02) 0%, transparent 10%), linear-gradient(180deg, var(--bg-1), var(--bg-2));color:#e9f3fb}
+        :root {
+            --bg-1:#06101a;
+            --bg-2:#091425;
+            --card:#071827;
+            --muted:#9fb0c1;
+            --accent:#56c1ff;
+            --accent-dark:#2ea3dc;
+            --glass:rgba(255,255,255,0.03);
+            --radius:12px;
+            --glass-2: rgba(255,255,255,0.02);
+        }
+        *{box-sizing:border-box}
+        html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial}
+        body{background:radial-gradient(ellipse at 20% 10%, rgba(86,193,255,0.02) 0%, transparent 10%),linear-gradient(180deg,var(--bg-1),var(--bg-2));color:#e9f3fb}
         .container{max-width:1120px;margin:36px auto;padding:20px;display:flex;flex-direction:column;height:calc(100vh - 72px)}
         header{display:flex;align-items:center;gap:16px;justify-content:space-between;margin-bottom:22px}
         .brand{display:flex;align-items:center;gap:14px}
@@ -60,12 +70,26 @@ if (is_dir($dir)) {
         .search{background:var(--glass);border:1px solid rgba(255,255,255,0.03);padding:10px 12px;border-radius:10px;color:inherit;min-width:300px}
         .sort{background:transparent;border:1px solid rgba(255,255,255,0.03);padding:8px 10px;border-radius:10px;color:var(--muted)}
         .card{background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));border-radius:var(--radius);padding:14px;box-shadow:0 6px 30px rgba(2,8,23,0.6);flex:1 1 auto;overflow-y:auto}
+        /* custom scrollbar styled to match palette */
+        .card::-webkit-scrollbar{width:10px;height:10px}
+        .card::-webkit-scrollbar-track{background:transparent}
+        .card::-webkit-scrollbar-thumb{
+            background: linear-gradient(180deg, rgba(86,193,255,0.22), rgba(86,193,255,0.12));
+            border-radius: 10px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+        }
+        /* Firefox */
+        .card{scrollbar-width:thin;scrollbar-color: rgba(86,193,255,0.3) transparent;}
         .count{color:var(--muted);font-size:14px;margin-bottom:12px}
         .list{display:grid;gap:10px}
         .row{display:flex;align-items:center;gap:14px;padding:12px;border-radius:10px;background:linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.007));border:1px solid rgba(255,255,255,0.02);transition:transform .12s ease, background .12s ease}
         .row:hover{transform:translateY(-4px);background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))}
-        .dir-row{cursor:pointer}
+        .dir-row{cursor:pointer;background:linear-gradient(90deg, rgba(255,255,255,0.015), rgba(255,255,255,0.007))}
         .thumb{width:56px;height:56px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--glass);font-weight:700;color:var(--accent);font-size:13px}
+        /* folder-specific thumb */
+        .thumb.folder{ background: linear-gradient(135deg, var(--accent), #7ad9ff); color: #012; font-size:20px; box-shadow: 0 4px 18px rgba(86,193,255,0.08); }
         .meta{flex:1;min-width:0}
         .filename{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .sub{font-size:13px;color:var(--muted);margin-top:6px}
@@ -78,9 +102,12 @@ if (is_dir($dir)) {
         .dd-menu.show{display:block}
         .dd-item{display:block;padding:9px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:13px}
         .dd-item:hover{background:rgba(255,255,255,0.02);color:inherit}
-        .children{margin-top:8px;margin-left:70px;display:grid;gap:8px}
-        .dir-row{background:linear-gradient(90deg, rgba(255,255,255,0.015), rgba(255,255,255,0.007))}
+        .children{margin-top:8px;margin-left:70px;display:grid;gap:8px;overflow:hidden;max-height:0;opacity:0;transition:max-height 320ms cubic-bezier(.2,.9,.2,1),opacity 220ms ease}
+        .children.open{opacity:1}
+        .children .row{margin:0}
         .indent{padding-left:10px}
+        .toggle-arrow{display:inline-block;transition:transform 220ms ease}
+        .toggle-arrow.expanded{transform:rotate(180deg)}
         .toast{position:fixed;right:20px;bottom:20px;background:#06202a;padding:12px 14px;border-radius:10px;color:#cfeefc;box-shadow:0 8px 30px rgba(2,8,23,0.6);display:none;z-index:200}
         .toast.show{display:block}
         @media (max-width:880px){.search{min-width:180px}.brand h1{font-size:18px}}
@@ -121,12 +148,41 @@ if (is_dir($dir)) {
 
         function humanSize(bytes){if(bytes===0)return'0 B';const thresh=1024;const units=['B','KB','MB','GB','TB'];let u=0;let n=bytes;while(n>=thresh&&u<units.length-1){n/=thresh;u++;}return Math.round(n*10)/10+' '+units[u];}
         function fmtDate(ts){const d=new Date(ts*1000);return d.toLocaleString();}
-        function fileIcon(name){const ext=(name.split('.').pop()||'').toLowerCase();if(/(pdf|docx?|xlsx?|pptx?)/.test(ext))return ext.toUpperCase();if(/(zip|rar|7z|tar|gz)/.test(ext))return'ZIP';if(/(jpe?g|png|gif|webp|svg)/.test(ext))return'IMG';if(/(html?|php|js|css|json|xml)/.test(ext))return'CODE';return ext.slice(0,4).toUpperCase();}
+        function fileIcon(name){
+            const ext=(name.split('.').pop()||'').toLowerCase();
+            if (ext === 'iso') return '💿';
+            if (/(pdf|docx?|xlsx?|pptx?)/.test(ext)) return ext.toUpperCase();
+            if (/(zip|rar|7z|tar|gz)/.test(ext)) return 'ZIP';
+            if (/(jpe?g|png|gif|webp|svg)/.test(ext)) return 'IMG';
+            if (/(html?|php|js|css|json|xml)/.test(ext)) return 'CODE';
+            return ext.slice(0,4).toUpperCase();
+        }
         function copyToClipboard(text){if(navigator.clipboard){navigator.clipboard.writeText(text).then(()=>showToast('Скопировано в буфер'))}else{const t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();try{document.execCommand('copy');showToast('Скопировано в буфер');}catch(e){showToast('Не удалось скопировать');}document.body.removeChild(t);}}
 
         const listEl=document.getElementById('list'),countEl=document.getElementById('count'),searchInput=document.getElementById('search'),sortSelect=document.getElementById('sort'),toast=document.getElementById('toast');
 
-        function showToast(t){toast.textContent=t;toast.classList.add('show');clearTimeout(showToast._t);showToast._t=setTimeout(()=>toast.classList.remove('show'),1600);} 
+        function showToast(t){toast.textContent=t;toast.classList.add('show');clearTimeout(showToast._t);showToast._t=setTimeout(()=>toast.classList.remove('show'),1600);}
+
+        function animateOpen(el){
+            el.style.display = 'grid';
+            requestAnimationFrame(()=>{
+                const h = el.scrollHeight;
+                el.style.maxHeight = h + 'px';
+                el.classList.add('open');
+            });
+        }
+        function animateClose(el){
+            el.style.maxHeight = el.scrollHeight + 'px';
+            requestAnimationFrame(()=>{
+                el.style.maxHeight = '0px';
+                el.classList.remove('open');
+            });
+            const onEnd = function(){
+                if (el.style.maxHeight === '0px') el.style.display = 'none';
+                el.removeEventListener('transitionend', onEnd);
+            };
+            el.addEventListener('transitionend', onEnd);
+        }
 
         function render(items){
             listEl.innerHTML='';
@@ -137,19 +193,20 @@ if (is_dir($dir)) {
 
             dirs.forEach(dir=>{
                 const row=document.createElement('div');row.className='row dir-row';
-                const thumb=document.createElement('div');thumb.className='thumb';thumb.textContent='DIR';
+                const thumb=document.createElement('div');thumb.className='thumb folder';thumb.textContent='📁';
                 const meta=document.createElement('div');meta.className='meta';
                 const name=document.createElement('div');name.className='filename';name.textContent=dir.name;
                 const sub=document.createElement('div');sub.className='sub';sub.textContent=`Папка • ${dir.children.length} файл(ов)`;
                 meta.appendChild(name);meta.appendChild(sub);
 
                 const btns=document.createElement('div');btns.className='btns';
-                const toggle=document.createElement('button');toggle.className='ghost';toggle.textContent='▾';
+                const toggle=document.createElement('button');toggle.className='ghost';toggle.innerHTML = '<span class="toggle-arrow">▾</span>';
+                toggle.setAttribute('aria-expanded','false');
                 btns.appendChild(toggle);
                 row.appendChild(thumb);row.appendChild(meta);row.appendChild(btns);
                 listEl.appendChild(row);
 
-                const childrenWrap=document.createElement('div');childrenWrap.className='children';childrenWrap.style.display='none';
+                const childrenWrap=document.createElement('div');childrenWrap.className='children';childrenWrap.style.display='none';childrenWrap.style.maxHeight='0px';
                 dir.children.forEach(f=>{
                     const crow=document.createElement('div');crow.className='row indent';
                     const cthumb=document.createElement('div');cthumb.className='thumb';cthumb.textContent=fileIcon(f.name);
@@ -170,7 +227,7 @@ if (is_dir($dir)) {
                     const childUrl=window.location.origin+'/'+webDir+'/'+encodeURIComponent(dir.name)+'/'+encodeURIComponent(f.name);
                     ccopy.addEventListener('click',e=>{e.stopPropagation();cmenu.classList.toggle('show');});
                     citem1.addEventListener('click',e=>{e.preventDefault();copyToClipboard(childUrl);cmenu.classList.remove('show');});
-                    citem2.addEventListener('click',e=>{e.preventDefault();const wget=`wget -O "${f.name.replace(/"/g,'\"')}" "${childUrl}"`;copyToClipboard(wget);cmenu.classList.remove('show');});
+                    citem2.addEventListener('click',e=>{e.preventDefault();const wget=`wget -O \"${f.name.replace(/\"/g,'\\\\\"')}\" \"${childUrl}\"`;copyToClipboard(wget);cmenu.classList.remove('show');});
 
                     cbtns.appendChild(cdl);cbtns.appendChild(ccopy);crow.appendChild(cthumb);crow.appendChild(cmeta);crow.appendChild(cbtns);crow.appendChild(cmenu);
                     childrenWrap.appendChild(crow);
@@ -181,10 +238,18 @@ if (is_dir($dir)) {
                 // открыть/закрыть по клику на всю строку (кроме кликов по кнопкам внутри .btns)
                 row.addEventListener('click', function(e){
                     if (e.target.closest('.btns')) return;
-                    const isOpen = childrenWrap.style.display !== 'none';
-                    childrenWrap.style.display = isOpen ? 'none' : 'grid';
-                    // обновим aria-expanded (если понадобится в будущем)
-                    toggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+                    const isOpen = childrenWrap.classList.contains('open');
+                    if(isOpen){
+                        toggle.querySelector('.toggle-arrow').classList.remove('expanded');
+                        animateClose(childrenWrap);
+                        childrenWrap.classList.remove('open');
+                        toggle.setAttribute('aria-expanded','false');
+                    } else {
+                        toggle.querySelector('.toggle-arrow').classList.add('expanded');
+                        animateOpen(childrenWrap);
+                        childrenWrap.classList.add('open');
+                        toggle.setAttribute('aria-expanded','true');
+                    }
                 });
 
             });
@@ -208,7 +273,7 @@ if (is_dir($dir)) {
                 const fileUrl=window.location.origin+'/'+webDir+'/'+encodeURIComponent(f.name);
                 copyBtn.addEventListener('click',e=>{e.stopPropagation();menu.classList.toggle('show');});
                 item1.addEventListener('click',e=>{e.preventDefault();copyToClipboard(fileUrl);menu.classList.remove('show');});
-                item2.addEventListener('click',e=>{e.preventDefault();const wget=`wget -O "${f.name.replace(/"/g,'\"')}" "${fileUrl}"`;copyToClipboard(wget);menu.classList.remove('show');});
+                item2.addEventListener('click',e=>{e.preventDefault();const wget=`wget -O \"${f.name.replace(/\"/g,'\\\\\"')}\" \"${fileUrl}\"`;copyToClipboard(wget);menu.classList.remove('show');});
 
                 btns.appendChild(dl);btns.appendChild(copyBtn);row.appendChild(thumb);row.appendChild(meta);row.appendChild(btns);row.appendChild(menu);listEl.appendChild(row);
             });
