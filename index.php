@@ -3,6 +3,31 @@ $dir = __DIR__ . DIRECTORY_SEPARATOR . 'files';
 $webDir = 'files';
 $items = [];
 
+// Простая функция получения хэша из кэша
+function getCachedHash($filePath) {
+    $cacheFile = __DIR__ . DIRECTORY_SEPARATOR . '.hash_cache' . DIRECTORY_SEPARATOR . md5($filePath) . '.cache';
+
+    if (file_exists($cacheFile)) {
+        $cacheData = json_decode(file_get_contents($cacheFile), true);
+        $fileMTime = filemtime($filePath);
+        $fileSize = filesize($filePath);
+
+        if ($cacheData && $cacheData['mtime'] == $fileMTime && $cacheData['size'] == $fileSize) {
+            // Если в кэше есть новый формат с префиксом - используем его
+            if (isset($cacheData['hash']) && strpos($cacheData['hash'], 'sha256:') === 0) {
+                return $cacheData['hash'];
+            }
+            // Если старый формат - добавляем префикс
+            if (isset($cacheData['hash'])) {
+                return 'sha256:' . $cacheData['hash'];
+            }
+        }
+    }
+
+    // Если хэша нет в кэше - возвращаем placeholder
+    return 'sha256:not_computed_yet';
+}
+
 if (is_dir($dir)) {
     foreach (scandir($dir) as $name) {
         if ($name === '.' || $name === '..') continue;
@@ -17,7 +42,7 @@ if (is_dir($dir)) {
                         'name' => $c,
                         'size' => filesize($cp),
                         'mtime' => filemtime($cp),
-                        'type' => function_exists('mime_content_type') ? mime_content_type($cp) : 'application/octet-stream'
+                        'type' => getCachedHash($cp)
                     ];
                 }
             }
@@ -31,7 +56,7 @@ if (is_dir($dir)) {
                 'name' => $name,
                 'size' => filesize($path),
                 'mtime' => filemtime($path),
-                'type' => function_exists('mime_content_type') ? mime_content_type($path) : 'application/octet-stream'
+                'type' => getCachedHash($path)
             ];
         }
     }
@@ -119,6 +144,28 @@ h1{margin:0;font-size:22px;background:linear-gradient(90deg,var(--accent),#9ae2f
 
 @media (max-width:880px){.search{min-width:180px}.brand h1{font-size:18px}}
 @media (max-width:640px){.actions{flex-direction:column;align-items:stretch}.search{width:100%}}
+
+/* Стили для кликабельных хэшей */
+.hash-clickable {
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    transition: color 0.2s ease;
+    font-family: 'Courier New', monospace;
+    font-weight: 500;
+}
+
+.hash-clickable:hover {
+    color: #9ae2ff;
+    text-decoration-style: solid;
+}
+
+.hash-not-ready {
+    color: var(--muted);
+    font-style: italic;
+    cursor: default;
+}
 </style>
 </head>
 <body>
@@ -205,6 +252,56 @@ h1{margin:0;font-size:22px;background:linear-gradient(90deg,var(--accent),#9ae2f
         }
 
         function copyToClipboard(text){if(navigator.clipboard){navigator.clipboard.writeText(text).then(()=>showToast('Скопировано в буфер'))}else{const t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();try{document.execCommand('copy');showToast('Скопировано в буфер');}catch(e){showToast('Не удалось скопировать');}document.body.removeChild(t);}}
+
+        // Функция для создания кликабельного хэша
+        function createClickableHash(hashValue) {
+            if (!hashValue || hashValue === 'sha256:not_computed_yet') {
+                const span = document.createElement('span');
+                span.className = 'hash-not-ready';
+                span.textContent = 'sha256:вычисляется...';
+                return span;
+            }
+
+            const span = document.createElement('span');
+            span.className = 'hash-clickable';
+            span.textContent = hashValue;
+            span.title = 'Кликните, чтобы скопировать хэш';
+
+            span.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Копируем только сам хэш без префикса sha256:
+                const hashOnly = hashValue.replace('sha256:', '');
+                copyToClipboard(hashOnly);
+
+                // Показываем анимацию
+                const originalColor = span.style.color;
+                span.style.color = '#4ade80';
+                setTimeout(() => {
+                    span.style.color = originalColor;
+                }, 200);
+            });
+
+            return span;
+        }
+
+        // Модифицируем функцию для замены хэша в тексте
+        function replaceHashInText(element, hashValue) {
+            const text = element.textContent;
+            const parts = text.split(' • ');
+
+            if (parts.length >= 3) {
+                // Очищаем элемент
+                element.innerHTML = '';
+
+                // Добавляем размер и дату
+                element.appendChild(document.createTextNode(parts[0] + ' • ' + parts[1] + ' • '));
+
+                // Добавляем кликабельный хэш
+                element.appendChild(createClickableHash(hashValue));
+            }
+        }
 
         const listEl=document.getElementById('list'),countEl=document.getElementById('count'),searchInput=document.getElementById('search'),sortSelect=document.getElementById('sort'),toast=document.getElementById('toast'),viewToggle=document.getElementById('viewToggle');
         let lastQuery = '';
@@ -302,7 +399,9 @@ h1{margin:0;font-size:22px;background:linear-gradient(90deg,var(--accent),#9ae2f
                     const highlighted = highlightSnippet(f.name,lastQuery);
                     cname.innerHTML = highlighted.html;
                     if(highlighted.count>0){const mb=document.createElement('span');mb.className='match-badge';mb.textContent=highlighted.count + ' совп.';cname.appendChild(mb);}
-                    const csub=document.createElement('div');csub.className='sub';csub.textContent=`${humanSize(f.size)} • ${fmtDate(f.mtime)} • ${f.type||''}`;
+                    const csub=document.createElement('div');csub.className='sub';
+                    csub.appendChild(document.createTextNode(`${humanSize(f.size)} • ${fmtDate(f.mtime)} • `));
+                    csub.appendChild(createClickableHash(f.type));
                     cmeta.appendChild(cname);cmeta.appendChild(csub);
 
                     const cbtns=document.createElement('div');cbtns.className='btns';
@@ -371,7 +470,9 @@ h1{margin:0;font-size:22px;background:linear-gradient(90deg,var(--accent),#9ae2f
                 const highlighted = highlightSnippet(f.name,lastQuery);
                 name.innerHTML = highlighted.html;
                 if(highlighted.count>0){const mb=document.createElement('span');mb.className='match-badge';mb.textContent=highlighted.count + ' совп.';name.appendChild(mb);}
-                const sub=document.createElement('div');sub.className='sub';sub.textContent=`${humanSize(f.size)} • ${fmtDate(f.mtime)} • ${f.type||''}`;
+                const sub=document.createElement('div');sub.className='sub';
+                sub.appendChild(document.createTextNode(`${humanSize(f.size)} • ${fmtDate(f.mtime)} • `));
+                sub.appendChild(createClickableHash(f.type));
                 meta.appendChild(name);meta.appendChild(sub);
 
                 const btns=document.createElement('div');btns.className='btns';
