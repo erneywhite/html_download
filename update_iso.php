@@ -1,10 +1,6 @@
 <?php
 
-// Массив соответствия: ключ - локальное имя файла
-// Значение - массив с ключами:
-//  - 'local_subdir' - поддиректория внутри папки $localDir,
-//  - 'url_dir'     - ссылка на папку с файлами на сервере,
-//  - 'remote_name' - имя файла на сервере (как указано в SHA256SUMS)
+// Массив соответствия локальных файлов
 $filesToUpdate = [
     'Debian_11.iso' => [
         'local_subdir' => 'Debian',
@@ -36,15 +32,23 @@ $filesToUpdate = [
         'url_dir'     => 'https://releases.ubuntu.com/25.04/',
         'remote_name' => 'ubuntu-25.04-live-server-amd64.iso',
     ],
-    // Добавляйте другие по аналогии
+    'CentOS_9.iso' => [
+        'local_subdir' => 'CentOS',
+        'url_dir'     => 'https://ftp.byfly.by/pub/centos-stream/9-stream/BaseOS/x86_64/iso/',
+        'remote_name' => 'latest',
+    ],
+    'CentOS_10.iso' => [
+        'local_subdir' => 'CentOS',
+        'url_dir'     => 'https://ftp.byfly.by/pub/centos-stream/10-stream/BaseOS/x86_64/iso/',
+        'remote_name' => 'latest',
+    ],
 ];
 
 $localDir = __DIR__ . DIRECTORY_SEPARATOR . 'files';
 $cacheDir = __DIR__ . DIRECTORY_SEPARATOR . '.hash_cache';
 
 /**
- * Скачивает файл из удаленного URL и сохраняет в $destination
- * @return bool
+ * Функция скачивания файла с визуальным прогресс-баром
  */
 function downloadFile(string $url, string $destination): bool
 {
@@ -55,28 +59,43 @@ function downloadFile(string $url, string $destination): bool
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_FILE, $fp);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 300); // 5 мин таймаута
+    curl_setopt($ch, CURLOPT_TIMEOUT, 0);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_NOPROGRESS, false);
+
+    curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function ($resource, $downloadSize, $downloaded, $uploadSize, $uploaded) {
+        if ($downloadSize > 0) {
+            $percent = ($downloaded / $downloadSize) * 100;
+            $filledBars = round($percent / 2); // 50 символов в полосе
+            $emptyBars = 50 - $filledBars;
+            $bar = str_repeat('=', $filledBars) . str_repeat(' ', $emptyBars);
+            printf("\rСкачивание: %3d%% [%s]", round($percent), $bar);
+        }
+    });
 
     $result = curl_exec($ch);
     curl_close($ch);
     fclose($fp);
 
+    echo "\n";
+
     return $result !== false;
 }
 
 /**
- * Парсит содержимое SHA256SUMS, возвращает ассоциативный массив [имя_файла => sha256]
+ * Универсальный парсер SHA256SUMS/SHA256SUM
  */
-function parseSHA256SUMS(string $content): array
+function parseChecksumContent(string $content): array
 {
     $hashes = [];
-    $lines  = explode("\n", $content);
+    $lines = explode("\n", $content);
 
     foreach ($lines as $line) {
         $line = trim($line);
         if (preg_match('/^([a-f0-9]{64})\s+\*?(\S+)$/i', $line, $matches)) {
             $hashes[$matches[2]] = $matches[1];
+        } elseif (preg_match('/^SHA256\s+\((.+?)\)\s+=\s+([a-f0-9]{64})$/i', $line, $matches)) {
+            $hashes[$matches[1]] = $matches[2];
         }
     }
 
@@ -84,9 +103,7 @@ function parseSHA256SUMS(string $content): array
 }
 
 /**
- * Получает локальный sha256 хэш с использованием кэша
- * Кэш хранится в $cacheDir, имя файла кэша - md5 пути файла
- * Возвращает строку хэша или false при отсутствии/ошибке
+ * Получение локального хэша с кэшированием
  */
 function getLocalFileHashCached(string $localPath, string $cacheDir)
 {
@@ -98,7 +115,7 @@ function getLocalFileHashCached(string $localPath, string $cacheDir)
         $fileSize  = filesize($localPath);
 
         if ($cacheData && $cacheData['mtime'] === $fileMTime && $cacheData['size'] === $fileSize) {
-            return $cacheData['hash'];  // используем кэш
+            return $cacheData['hash'];
         }
     }
 
@@ -121,21 +138,19 @@ function getLocalFileHashCached(string $localPath, string $cacheDir)
     return $hash;
 }
 
-// Обработка каждого файла из списка
 foreach ($filesToUpdate as $localName => $info) {
+
     echo "Обрабатываем файл: {$localName}\n";
 
     $localSubdir = $info['local_subdir'] ?? '';
     $urlDir     = rtrim($info['url_dir'], '/') . '/';
     $remoteName = $info['remote_name'];
-    $shaUrl     = $urlDir . 'SHA256SUMS';
 
-    // Полный путь к локальному файлу с поддиректорией (если указано)
-    $localPath  = $localDir
+    $localPath = $localDir
         . ($localSubdir !== '' ? DIRECTORY_SEPARATOR . $localSubdir : '')
         . DIRECTORY_SEPARATOR . $localName;
 
-    echo "Локальный файл: $localPath\n";
+    echo "Локальный файл: {$localPath}\n";
 
     if (!file_exists($localPath)) {
         echo "Файл отсутствует локально — будет загружен\n";
@@ -144,33 +159,59 @@ foreach ($filesToUpdate as $localName => $info) {
         continue;
     }
 
-    echo "Скачиваем SHA256SUMS: {$shaUrl}\n";
+    $shaUrlsToTry = [
+        $urlDir . 'SHA256SUMS',
+        $urlDir . 'SHA256SUM',
+    ];
 
-    $shaContent = @file_get_contents($shaUrl);
+    $shaContent = false;
+    foreach ($shaUrlsToTry as $tryUrl) {
+        echo "Пытаемся скачать контрольные суммы: {$tryUrl}\n";
+        $shaContent = @file_get_contents($tryUrl);
+        if ($shaContent !== false) {
+            break;
+        }
+    }
+
     if ($shaContent === false) {
-        echo "Не удалось загрузить SHA256SUMS с {$shaUrl}\n\n";
+        echo "Не удалось скачать ни SHA256SUMS, ни SHA256SUM с {$urlDir}\n\n";
         continue;
     }
 
-    $remoteHashes = parseSHA256SUMS($shaContent);
+    $remoteHashes = parseChecksumContent($shaContent);
+
+    if ($remoteName === 'latest' || $remoteName === '') {
+        $matchedName = null;
+        foreach ($remoteHashes as $fileName => $fileHash) {
+            if (stripos($fileName, 'dvd') !== false) {
+                $matchedName = $fileName;
+                break;
+            }
+        }
+        if ($matchedName === null) {
+            echo "Не найден файл с 'dvd' в имени для загрузки\n";
+            continue;
+        }
+        $remoteName = $matchedName;
+    }
+
     if (!isset($remoteHashes[$remoteName])) {
-        echo "Контрольная сумма для файла {$remoteName} отсутствует в SHA256SUMS\n\n";
+        echo "Нет контрольной суммы для файла {$remoteName} в контрольных суммах\n\n";
         continue;
     }
 
     $remoteHash = $remoteHashes[$remoteName];
     $localHash  = getLocalFileHashCached($localPath, $cacheDir);
 
-    // Удаляем префикс sha256: из локального хэша при сравнении, если он есть
     $localHashForCompare = $localHash !== false && strpos($localHash, 'sha256:') === 0
         ? substr($localHash, strlen('sha256:'))
         : $localHash;
 
     echo "Локальный хэш: " . ($localHash !== false ? $localHash : 'отсутствует') . "\n";
-    echo "Удалённый хэш: {$remoteHash}\n";
+    echo "Удаленный хэш: {$remoteHash}\n";
 
     if ($localHashForCompare === $remoteHash) {
-        echo "Файл актуален, скачивание не нужно.\n\n";
+        echo "Файл актуален, обновление не требуется.\n\n";
         continue;
     }
 
@@ -195,3 +236,5 @@ foreach ($filesToUpdate as $localName => $info) {
 }
 
 echo "Обновление файлов завершено.\n";
+
+?>
