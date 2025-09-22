@@ -32,6 +32,11 @@ $filesToUpdate = [
         'url_dir'     => 'https://releases.ubuntu.com/25.04/',
         'remote_name' => 'ubuntu-25.04-live-server-amd64.iso',
     ],
+    'CentOS_7.iso' => [
+        'local_subdir' => 'CentOS',
+        'url_dir'     => 'https://mirror.yandex.ru/centos/centos/7/isos/x86_64/',
+        'remote_name' => 'CentOS-7-x86_64-DVD-2207-02.iso',
+    ],
     'CentOS_9.iso' => [
         'local_subdir' => 'CentOS',
         'url_dir'     => 'https://ftp.byfly.by/pub/centos-stream/9-stream/BaseOS/x86_64/iso/',
@@ -41,6 +46,46 @@ $filesToUpdate = [
         'local_subdir' => 'CentOS',
         'url_dir'     => 'https://ftp.byfly.by/pub/centos-stream/10-stream/BaseOS/x86_64/iso/',
         'remote_name' => 'latest',
+    ],
+    'AlmaLinux_8.10.iso' => [
+        'local_subdir' => 'AlmaLinux',
+        'url_dir'     => 'https://raw.repo.almalinux.org/almalinux/8.10/isos/x86_64/',
+        'remote_name' => 'AlmaLinux-8-latest-x86_64-dvd.iso',
+    ],
+    'AlmaLinux_9.6.iso' => [
+        'local_subdir' => 'AlmaLinux',
+        'url_dir'     => 'https://raw.repo.almalinux.org/almalinux/9.6/isos/x86_64/',
+        'remote_name' => 'AlmaLinux-9-latest-x86_64-dvd.iso',
+    ],
+    'AlmaLinux_10.0.iso' => [
+        'local_subdir' => 'AlmaLinux',
+        'url_dir'     => 'https://raw.repo.almalinux.org/almalinux/10/isos/x86_64/',
+        'remote_name' => 'AlmaLinux-10-latest-x86_64-dvd.iso',
+    ],
+    'ProxmoxVE_7.4.iso' => [
+        'local_subdir' => 'Proxmox',
+        'url_dir'     => 'https://enterprise.proxmox.com/iso/',
+        'remote_name' => 'proxmox-ve_7.4-1.iso',
+    ],
+    'ProxmoxVE_8.4.iso' => [
+        'local_subdir' => 'Proxmox',
+        'url_dir'     => 'https://enterprise.proxmox.com/iso/',
+        'remote_name' => 'proxmox-ve_8.4-1.iso',
+    ],
+    'ProxmoxVE_9.0.iso' => [
+        'local_subdir' => 'Proxmox',
+        'url_dir'     => 'https://enterprise.proxmox.com/iso/',
+        'remote_name' => 'proxmox-ve_9.0-1.iso',
+    ],
+    'Proxmox_BackUP_4.0.iso' => [
+        'local_subdir' => 'Proxmox',
+        'url_dir'     => 'https://enterprise.proxmox.com/iso/',
+        'remote_name' => 'proxmox-backup-server_4.0-1.iso',
+    ],
+    'Proxmox_MailGateway_7.3.iso' => [
+        'local_subdir' => 'Proxmox',
+        'url_dir'     => 'https://enterprise.proxmox.com/iso/',
+        'remote_name' => 'proxmox-mailgateway_7.3-1.iso',
     ],
 ];
 
@@ -162,6 +207,8 @@ foreach ($filesToUpdate as $localName => $info) {
     $shaUrlsToTry = [
         $urlDir . 'SHA256SUMS',
         $urlDir . 'SHA256SUM',
+        $urlDir . 'sha256sum.txt',
+        $urlDir . 'CHECKSUM',
     ];
 
     $shaContent = false;
