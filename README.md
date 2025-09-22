@@ -50,8 +50,10 @@ php update_iso.php
 Добавьте в вашу crontab следующий пример (отрегулируйте пути под ваш сервер):
 
 Вычисление хэшей файлов
+
 0 * * * * php /path/to/generate_all_hashes.php > /dev/null
 Обновление iso
+
 0 0 * * * php /path/to/update_iso.php > /dev/null
 
 Задачи:
