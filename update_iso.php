@@ -47,14 +47,14 @@ $filesToUpdate = [
         'url_dir'     => 'https://ftp.byfly.by/pub/centos-stream/10-stream/BaseOS/x86_64/iso/',
         'remote_name' => 'latest',
     ],
-    'AlmaLinux_8.10.iso' => [
+    'AlmaLinux_8.iso' => [
         'local_subdir' => 'AlmaLinux',
-        'url_dir'     => 'https://raw.repo.almalinux.org/almalinux/8.10/isos/x86_64/',
+        'url_dir'     => 'https://raw.repo.almalinux.org/almalinux/8/isos/x86_64/',
         'remote_name' => 'AlmaLinux-8-latest-x86_64-dvd.iso',
     ],
-    'AlmaLinux_9.6.iso' => [
+    'AlmaLinux_9.iso' => [
         'local_subdir' => 'AlmaLinux',
-        'url_dir'     => 'https://raw.repo.almalinux.org/almalinux/9.6/isos/x86_64/',
+        'url_dir'     => 'https://raw.repo.almalinux.org/almalinux/9/isos/x86_64/',
         'remote_name' => 'AlmaLinux-9-latest-x86_64-dvd.iso',
     ],
     'AlmaLinux_10.0.iso' => [
@@ -103,6 +103,10 @@ function downloadFile(string $url, string $destination): bool
     }
 
     $ch = curl_init($url);
+    // >>> игнорировать ошибки SSL
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // НЕ проверять сертификат
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);     // НЕ проверять имя хоста
+    // <<<
     curl_setopt($ch, CURLOPT_FILE, $fp);
     curl_setopt($ch, CURLOPT_TIMEOUT, 0);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -214,7 +218,31 @@ foreach ($filesToUpdate as $localName => $info) {
     $shaContent = false;
     foreach ($shaUrlsToTry as $tryUrl) {
         echo "Пытаемся скачать контрольные суммы: {$tryUrl}\n";
+        $shaContent = false;
+
+// подготовим один раз контекст для HTTPS
+$sslContext = stream_context_create([
+    'ssl' => [
+        'verify_peer'      => false,
+        'verify_peer_name' => false,
+    ],
+]);
+
+foreach ($shaUrlsToTry as $tryUrl) {
+    echo "Пытаемся скачать контрольные суммы: {$tryUrl}\n";
+
+    if (stripos($tryUrl, 'https://') === 0) {
+        // для HTTPS используем контекст с отключённой проверкой SSL
+        $shaContent = @file_get_contents($tryUrl, false, $sslContext);
+    } else {
+        // для HTTP можно как раньше
         $shaContent = @file_get_contents($tryUrl);
+    }
+
+    if ($shaContent !== false) {
+        break;
+    }
+}
         if ($shaContent !== false) {
             break;
         }
