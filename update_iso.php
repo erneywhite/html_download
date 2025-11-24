@@ -14,8 +14,8 @@ $filesToUpdate = [
     ],
     'Debian_13.iso' => [
         'local_subdir' => 'Debian',
-        'url_dir'     => 'https://cdimage.debian.org/cdimage/archive/13.0.0/amd64/iso-dvd/',
-        'remote_name' => 'debian-13.0.0-amd64-DVD-1.iso',
+        'url_dir'     => 'https://cdimage.debian.org/cdimage/archive/13.1.0/amd64/iso-dvd/',
+        'remote_name' => 'debian-13.1.0-amd64-DVD-1.iso',
     ],
     'Ubuntu_22.04.iso' => [
         'local_subdir' => 'Ubuntu',
@@ -72,10 +72,10 @@ $filesToUpdate = [
         'url_dir'     => 'https://enterprise.proxmox.com/iso/',
         'remote_name' => 'proxmox-ve_8.4-1.iso',
     ],
-    'ProxmoxVE_9.0.iso' => [
+    'ProxmoxVE_9.1.iso' => [
         'local_subdir' => 'Proxmox',
         'url_dir'     => 'https://enterprise.proxmox.com/iso/',
-        'remote_name' => 'proxmox-ve_9.0-1.iso',
+        'remote_name' => 'proxmox-ve_9.1-1.iso',
     ],
     'Proxmox_BackUP_4.0.iso' => [
         'local_subdir' => 'Proxmox',
