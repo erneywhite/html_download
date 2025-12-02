@@ -1,4 +1,7 @@
 ## Вычисление хэшей файлов
 0 * * * *       php /path/to/generate_all_hashes.php > /dev/null
-## Обновление iso
+## Обновление iso (если отключён вызов генерации хешей в конце скрипта)
+0 0 * * *       php /path/to/update_iso.php > /dev/null
+
+## Обновление iso (если отключён планировщик для скрипта генерации хешей)
 0 0 * * 6       php /path/to/update_iso.php > /dev/null
