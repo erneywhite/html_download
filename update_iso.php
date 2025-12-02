@@ -93,6 +93,17 @@ $filesToUpdate = [
         'remote_name' => 'virtio-win.iso',
         'force_download_without_checksum' => true,
     ],
+    'ArchLinux.iso' => [
+        'local_subdir' => 'ArchLinux',
+        'url_dir'     => 'https://mirror.yandex.ru/archlinux/iso/latest/',
+        'remote_name' => 'archlinux-x86_64.iso',
+    ],
+    'NyarchLinux.iso' => [
+        'local_subdir' => 'ArchLinux',
+        'url_dir'     => 'https://mirror.nyarchlinux.moe/',
+        'remote_name' => 'Nyarch_Gnome_25.04.2.iso',
+        'force_download_without_checksum' => true,
+    ],
 ];
 
 $localDir = __DIR__ . DIRECTORY_SEPARATOR . 'files';
@@ -221,6 +232,7 @@ foreach ($filesToUpdate as $localName => $info) {
         $urlDir . 'SHA256SUMS',
         $urlDir . 'SHA256SUM',
         $urlDir . 'sha256sum.txt',
+        $urlDir . 'sha256sums.txt',
         $urlDir . 'CHECKSUM',
     ];
 
@@ -361,5 +373,8 @@ foreach ($filesToUpdate as $localName => $info) {
 }
 
 echo "Обновление файлов завершено.\n";
+
+// Запускаем генерацию хэшей
+require __DIR__ . '/generate_all_hashes.php';
 
 ?>
