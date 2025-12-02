@@ -87,6 +87,12 @@ $filesToUpdate = [
         'url_dir'     => 'https://enterprise.proxmox.com/iso/',
         'remote_name' => 'proxmox-mailgateway_7.3-1.iso',
     ],
+    'QEMU_virtio-win-latest.iso' => [
+        'local_subdir' => 'Windows',
+        'url_dir'     => 'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/',
+        'remote_name' => 'virtio-win.iso',
+        'force_download_without_checksum' => true,
+    ],
 ];
 
 $localDir = __DIR__ . DIRECTORY_SEPARATOR . 'files';
@@ -192,8 +198,10 @@ foreach ($filesToUpdate as $localName => $info) {
     echo "Обрабатываем файл: {$localName}\n";
 
     $localSubdir = $info['local_subdir'] ?? '';
-    $urlDir     = rtrim($info['url_dir'], '/') . '/';
-    $remoteName = $info['remote_name'];
+    $urlDir      = rtrim($info['url_dir'], '/') . '/';
+    $remoteName  = $info['remote_name'];
+
+    $forceDownloadWithoutChecksum = !empty($info['force_download_without_checksum']);
 
     $localPath = $localDir
         . ($localSubdir !== '' ? DIRECTORY_SEPARATOR . $localSubdir : '')
@@ -208,6 +216,7 @@ foreach ($filesToUpdate as $localName => $info) {
         continue;
     }
 
+    // URL-ы с чексуммами
     $shaUrlsToTry = [
         $urlDir . 'SHA256SUMS',
         $urlDir . 'SHA256SUM',
@@ -215,46 +224,62 @@ foreach ($filesToUpdate as $localName => $info) {
         $urlDir . 'CHECKSUM',
     ];
 
+    // подготовим контекст для HTTPS
+    $sslContext = stream_context_create([
+        'ssl' => [
+            'verify_peer'      => false,
+            'verify_peer_name' => false,
+        ],
+    ]);
+
     $shaContent = false;
     foreach ($shaUrlsToTry as $tryUrl) {
         echo "Пытаемся скачать контрольные суммы: {$tryUrl}\n";
-        $shaContent = false;
 
-// подготовим один раз контекст для HTTPS
-$sslContext = stream_context_create([
-    'ssl' => [
-        'verify_peer'      => false,
-        'verify_peer_name' => false,
-    ],
-]);
+        if (stripos($tryUrl, 'https://') === 0) {
+            $shaContent = @file_get_contents($tryUrl, false, $sslContext);
+        } else {
+            $shaContent = @file_get_contents($tryUrl);
+        }
 
-foreach ($shaUrlsToTry as $tryUrl) {
-    echo "Пытаемся скачать контрольные суммы: {$tryUrl}\n";
-
-    if (stripos($tryUrl, 'https://') === 0) {
-        // для HTTPS используем контекст с отключённой проверкой SSL
-        $shaContent = @file_get_contents($tryUrl, false, $sslContext);
-    } else {
-        // для HTTP можно как раньше
-        $shaContent = @file_get_contents($tryUrl);
-    }
-
-    if ($shaContent !== false) {
-        break;
-    }
-}
         if ($shaContent !== false) {
             break;
         }
     }
 
+    // === НЕТ ФАЙЛА С ЧЕКСУММАМИ ===
     if ($shaContent === false) {
+        if ($forceDownloadWithoutChecksum) {
+            echo "Контрольные суммы недоступны, но для {$localName} разрешено скачивание без проверки.\n";
+
+            $fileUrl = $urlDir . $remoteName;
+            $tmpFile = $localPath . '.tmp';
+
+            if (!is_dir(dirname($localPath))) {
+                mkdir(dirname($localPath), 0755, true);
+            }
+
+            if (downloadFile($fileUrl, $tmpFile)) {
+                rename($tmpFile, $localPath);
+                echo "Файл загружен без проверки хэша: {$localName}\n\n";
+            } else {
+                echo "Ошибка скачивания: {$fileUrl}\n\n";
+                if (file_exists($tmpFile)) {
+                    unlink($tmpFile);
+                }
+            }
+
+            // переходим к следующему элементу
+            continue;
+        }
+
         echo "Не удалось скачать ни SHA256SUMS, ни SHA256SUM с {$urlDir}\n\n";
         continue;
     }
 
     $remoteHashes = parseChecksumContent($shaContent);
 
+    // обработка remote_name = 'latest'
     if ($remoteName === 'latest' || $remoteName === '') {
         $matchedName = null;
         foreach ($remoteHashes as $fileName => $fileHash) {
@@ -270,11 +295,36 @@ foreach ($shaUrlsToTry as $tryUrl) {
         $remoteName = $matchedName;
     }
 
+    // === ЕСТЬ ФАЙЛ С ЧЕКСУММАМИ, НО НЕТ ЗАПИСИ ДЛЯ КОНКРЕТНОГО ФАЙЛА ===
     if (!isset($remoteHashes[$remoteName])) {
+        if ($forceDownloadWithoutChecksum) {
+            echo "Нет контрольной суммы для {$remoteName}, но разрешено скачивание без проверки.\n";
+
+            $fileUrl = $urlDir . $remoteName;
+            $tmpFile = $localPath . '.tmp';
+
+            if (!is_dir(dirname($localPath))) {
+                mkdir(dirname($localPath), 0755, true);
+            }
+
+            if (downloadFile($fileUrl, $tmpFile)) {
+                rename($tmpFile, $localPath);
+                echo "Файл загружен без проверки хэша: {$localName}\n\n";
+            } else {
+                echo "Ошибка скачивания: {$fileUrl}\n\n";
+                if (file_exists($tmpFile)) {
+                    unlink($tmpFile);
+                }
+            }
+
+            continue;
+        }
+
         echo "Нет контрольной суммы для файла {$remoteName} в контрольных суммах\n\n";
         continue;
     }
 
+    // === Обычная логика сравнения хэшей ===
     $remoteHash = $remoteHashes[$remoteName];
     $localHash  = getLocalFileHashCached($localPath, $cacheDir);
 
